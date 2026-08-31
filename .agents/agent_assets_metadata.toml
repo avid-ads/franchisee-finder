@@ -1,0 +1,17 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "rfTLVU3O8EJhZYULe2sb3"
+uri = "file://.local/conversation-workspace/files/fdd_franchisee_finder_qa_plan.md"
+type = "text"
+title = "FDD Franchisee Finder QA Test Plan"
+description = "Test matrix, fixture map, expected behaviors, and prompt changes based on the three supplied FDD PDFs."
+logical_id = "3291f76a-cc1b-4984-a138-292fedece253"
+content_hash = "sha256:a2100dc95f48abdb2b07c8d82616e26a983bd4599f3bc11ec2709b9e7365b807"
+size = 10127
+mtime_ms = 1787953949912
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/conversation:9ed3656a-9c59-400b-bdcc-91213747c3da/3291f76a-cc1b-4984-a138-292fedece253/d3523ae1-567c-4af7-a06c-6b444d1be67d"
+storage_version_token = "1787953956457090"
+content_type = "text/markdown"
+source_uri = "file://fdd_franchisee_finder_qa_plan.md"

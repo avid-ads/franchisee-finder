@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Franchise Finder"
+description = "A source-backed franchise intelligence workspace that accepts FDD PDFs, extracts and normalizes franchisee locations, and lets teams review records against the original document pages."
+version = "1.0.0"
+id = "artifacts/franchise-finder"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21574
+
+[services.development]
+run = "pnpm --filter @workspace/franchise-finder run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/franchise-finder", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/franchise-finder/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21574"
+BASE_PATH = "/"

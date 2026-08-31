@@ -1,0 +1,4 @@
+- [Server-side PDF.js](server-pdfjs.md) — keep PDF.js external to the API bundle so its worker resolves from the installed package.
+- [FDD extraction invariants](fdd-extraction-invariants.md) — trust filename brands, parse only franchisee exhibits, and replace derived rows idempotently.
+- [FDD reupload reconciliation](fdd-reupload-reconciliation.md) — merge only unambiguous identities; retain conflicts for review and make exact repeat evidence idempotent.
+- [FDD OCR safety](fdd-ocr-safety.md) — OCR sparse raster pages before discovery, but never let incomplete or weak OCR erase a healthy corpus.
