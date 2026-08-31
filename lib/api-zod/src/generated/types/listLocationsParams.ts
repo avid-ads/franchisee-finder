@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ListLocationsReviewStatus } from './listLocationsReviewStatus';
 import type { ListLocationsStatus } from './listLocationsStatus';
 
 export type ListLocationsParams = {
@@ -13,7 +14,7 @@ status?: ListLocationsStatus;
 franchisor?: string;
 state?: string;
 documentId?: string;
-reviewStatus?: 'Needs review' | 'Approved' | 'Rejected';
+reviewStatus?: ListLocationsReviewStatus;
 /**
  * @minimum 1
  * @maximum 500

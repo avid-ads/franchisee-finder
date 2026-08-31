@@ -19,6 +19,7 @@ export * from './franchiseLocationReviewStatus';
 export * from './franchiseLocationStatus';
 export * from './healthStatus';
 export * from './listLocationsParams';
+export * from './listLocationsReviewStatus';
 export * from './listLocationsStatus';
 export * from './locationUpdate';
 export * from './locationUpdateReviewStatus';

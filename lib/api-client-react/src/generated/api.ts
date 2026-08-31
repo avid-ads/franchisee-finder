@@ -362,6 +362,77 @@ export const useUploadDocument = <TError = ErrorType<ErrorResponse>,
       return useMutation(getUploadDocumentMutationOptions(options));
     }
 
+export const getRerunDocumentUrl = (documentId: string,) => {
+
+
+
+
+  return `/api/documents/${documentId}/rerun`
+}
+
+/**
+ * @summary Reprocess a stored FDD document
+ */
+export const rerunDocument = async (documentId: string, options?: Parameters<typeof customFetch>[1]): Promise<FddDocument> => {
+
+  return customFetch<FddDocument>(getRerunDocumentUrl(documentId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRerunDocumentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rerunDocument>>, TError,{documentId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rerunDocument>>, TError,{documentId: string}, TContext> => {
+
+const mutationKey = ['rerunDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rerunDocument>>, {documentId: string}> = (props) => {
+          const {documentId} = props ?? {};
+
+          return  rerunDocument(documentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RerunDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof rerunDocument>>>
+
+    export type RerunDocumentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reprocess a stored FDD document
+ */
+export const useRerunDocument = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rerunDocument>>, TError,{documentId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rerunDocument>>,
+        TError,
+        {documentId: string},
+        TContext
+      > => {
+      return useMutation(getRerunDocumentMutationOptions(options));
+    }
+
 export const getRequestUploadUrlUrl = () => {
 
 

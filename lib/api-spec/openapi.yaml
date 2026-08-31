@@ -75,6 +75,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /documents/{documentId}/rerun:
+    post:
+      operationId: rerunDocument
+      tags: [franchise-finder]
+      summary: Reprocess a stored FDD document
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "202":
+          description: Stored document queued for reprocessing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FddDocument"
+        "404":
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Document is already processing or has no stored PDF
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /storage/uploads/request-url:
     post:
       operationId: requestUploadUrl

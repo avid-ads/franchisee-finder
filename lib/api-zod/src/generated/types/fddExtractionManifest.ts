@@ -13,6 +13,11 @@ export interface FddExtractionManifest {
   sourceRanges: FddSourceRange[];
   pagesExamined: number[];
   ocrPages?: number[];
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
   ocrConfidence?: number | null;
   acceptedRows: number;
   rejectedRows: number;

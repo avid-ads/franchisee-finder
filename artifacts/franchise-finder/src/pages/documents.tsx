@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { 
   useListDocuments, 
   useUploadDocument,
+  useRerunDocument,
   useRequestUploadUrl,
   getGetStatsQueryKey,
   getListDocumentsQueryKey
@@ -18,7 +19,8 @@ import {
   Store,
   ArrowUpRight,
   Database,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +43,10 @@ function MetricBadge({ label, value, color, bg, border }: { label: string, value
 
 export default function Documents() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [rerunningDocumentId, setRerunningDocumentId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const rerun = useRerunDocument();
   const { data: documents, isLoading } = useListDocuments({
     query: {
       queryKey: getListDocumentsQueryKey(),
@@ -55,6 +61,27 @@ export default function Documents() {
     d.franchiseName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     d.filename.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
+
+  const handleRerun = async (documentId: string) => {
+    setRerunningDocumentId(documentId);
+    try {
+      await rerun.mutateAsync({ documentId });
+      toast({
+        title: "RERUN INITIATED",
+        description: "The stored FDD is being reprocessed with the latest extraction rules.",
+      });
+      await queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+    } catch (error: any) {
+      toast({
+        title: "Rerun failed",
+        description: error?.data?.error || error?.response?.data?.error || error?.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setRerunningDocumentId(null);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -162,11 +189,23 @@ export default function Documents() {
                       )}
                     </div>
                     
-                    <Link href={`/locations?documentId=${doc.id}`} data-testid={`link-doc-locations-${doc.id}`}>
-                      <Button className="brutal-btn rounded-lg bg-foreground text-background hover:bg-foreground/90 gap-2 w-full md:w-auto">
-                        Locations <ArrowUpRight className="w-4 h-4 stroke-[3]" />
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        className="brutal-btn rounded-lg bg-accent text-foreground hover:bg-accent/80 gap-2 w-full md:w-auto"
+                        onClick={() => handleRerun(doc.id)}
+                        disabled={doc.processingStatus === "Processing" || rerun.isPending}
+                        data-testid={`button-rerun-${doc.id}`}
+                        title={doc.processingStatus === "Processing" ? "This FDD is already processing" : "Reprocess this stored FDD"}
+                      >
+                        <RefreshCw className={cn("w-4 h-4 stroke-[3]", rerunningDocumentId === doc.id && "animate-spin")} />
+                        {rerunningDocumentId === doc.id ? "Rerunning..." : "Rerun"}
                       </Button>
-                    </Link>
+                      <Link href={`/locations?documentId=${doc.id}`} data-testid={`link-doc-locations-${doc.id}`}>
+                        <Button className="brutal-btn rounded-lg bg-foreground text-background hover:bg-foreground/90 gap-2 w-full md:w-auto">
+                          Locations <ArrowUpRight className="w-4 h-4 stroke-[3]" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </div>
 

@@ -66,6 +66,11 @@ export interface FddExtractionManifest {
   sourceRanges: FddSourceRange[];
   pagesExamined: number[];
   ocrPages?: number[];
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
   ocrConfidence?: number | null;
   acceptedRows: number;
   rejectedRows: number;
@@ -247,7 +252,7 @@ status?: ListLocationsStatus;
 franchisor?: string;
 state?: string;
 documentId?: string;
-reviewStatus?: 'Needs review' | 'Approved' | 'Rejected';
+reviewStatus?: ListLocationsReviewStatus;
 /**
  * @minimum 1
  * @maximum 500
@@ -267,3 +272,13 @@ export const ListLocationsStatus = {
   Former: 'Former',
   Planning: 'Planning',
 } as const;
+
+export type ListLocationsReviewStatus = typeof ListLocationsReviewStatus[keyof typeof ListLocationsReviewStatus];
+
+
+export const ListLocationsReviewStatus = {
+  Needs_review: 'Needs review',
+  Approved: 'Approved',
+  Rejected: 'Rejected',
+} as const;
+

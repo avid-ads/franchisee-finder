@@ -33,6 +33,11 @@ export const GetStatsResponse = zod.object({
 /**
  * @summary List uploaded FDD documents
  */
+export const listDocumentsResponseExtractionManifestOneOcrConfidenceMin = 0;
+export const listDocumentsResponseExtractionManifestOneOcrConfidenceMax = 1;
+
+
+
 export const ListDocumentsResponseItem = zod.object({
   "id": zod.string(),
   "franchiseName": zod.string(),
@@ -54,6 +59,8 @@ export const ListDocumentsResponseItem = zod.object({
   "pdfEnd": zod.number()
 })),
   "pagesExamined": zod.array(zod.number()),
+  "ocrPages": zod.array(zod.number()).optional(),
+  "ocrConfidence": zod.number().min(listDocumentsResponseExtractionManifestOneOcrConfidenceMin).max(listDocumentsResponseExtractionManifestOneOcrConfidenceMax).nullish(),
   "acceptedRows": zod.number(),
   "rejectedRows": zod.number(),
   "duplicateRows": zod.number(),
@@ -95,6 +102,11 @@ export const UploadDocumentBody = zod.object({
   "objectPath": zod.string().min(1)
 })
 
+export const uploadDocumentResponseExtractionManifestOneOcrConfidenceMin = 0;
+export const uploadDocumentResponseExtractionManifestOneOcrConfidenceMax = 1;
+
+
+
 export const UploadDocumentResponse = zod.object({
   "id": zod.string(),
   "franchiseName": zod.string(),
@@ -116,6 +128,71 @@ export const UploadDocumentResponse = zod.object({
   "pdfEnd": zod.number()
 })),
   "pagesExamined": zod.array(zod.number()),
+  "ocrPages": zod.array(zod.number()).optional(),
+  "ocrConfidence": zod.number().min(uploadDocumentResponseExtractionManifestOneOcrConfidenceMin).max(uploadDocumentResponseExtractionManifestOneOcrConfidenceMax).nullish(),
+  "acceptedRows": zod.number(),
+  "rejectedRows": zod.number(),
+  "duplicateRows": zod.number(),
+  "missingAddressRows": zod.number(),
+  "missingContactRows": zod.number(),
+  "addedRows": zod.number().optional(),
+  "matchedRows": zod.number().optional(),
+  "updatedRows": zod.number().optional(),
+  "unchangedRows": zod.number().optional(),
+  "ambiguousRows": zod.number().optional(),
+  "collapsedRows": zod.number().optional(),
+  "removedRows": zod.number().optional(),
+  "warnings": zod.array(zod.string()),
+  "complete": zod.boolean()
+}),zod.null()]),
+  "lastProcessedAt": zod.string().nullable(),
+  "locationCount": zod.number(),
+  "recordCounts": zod.record(zod.string(), zod.number()),
+  "stages": zod.array(zod.object({
+  "stage": zod.string(),
+  "status": zod.string(),
+  "message": zod.string().nullish(),
+  "startedAt": zod.string(),
+  "finishedAt": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Reprocess a stored FDD document
+ */
+export const RerunDocumentParams = zod.object({
+  "documentId": zod.coerce.string()
+})
+
+export const rerunDocumentResponseExtractionManifestOneOcrConfidenceMin = 0;
+export const rerunDocumentResponseExtractionManifestOneOcrConfidenceMax = 1;
+
+
+
+export const RerunDocumentResponse = zod.object({
+  "id": zod.string(),
+  "franchiseName": zod.string(),
+  "fddYear": zod.number().nullish(),
+  "filename": zod.string(),
+  "uploadDate": zod.string(),
+  "processingStatus": zod.string(),
+  "pageCount": zod.number(),
+  "dataAsOf": zod.string().nullish(),
+  "sourceExhibit": zod.string().nullish(),
+  "extractionManifest": zod.union([zod.object({
+  "discoveryMethod": zod.enum(['toc', 'heading-scan', 'legacy-fallback']),
+  "sourceRanges": zod.array(zod.object({
+  "section": zod.string(),
+  "status": zod.enum(['Current', 'Former', 'Planning']),
+  "exhibit": zod.string().nullable(),
+  "printedStart": zod.string().nullable(),
+  "pdfStart": zod.number(),
+  "pdfEnd": zod.number()
+})),
+  "pagesExamined": zod.array(zod.number()),
+  "ocrPages": zod.array(zod.number()).optional(),
+  "ocrConfidence": zod.number().min(rerunDocumentResponseExtractionManifestOneOcrConfidenceMin).max(rerunDocumentResponseExtractionManifestOneOcrConfidenceMax).nullish(),
   "acceptedRows": zod.number(),
   "rejectedRows": zod.number(),
   "duplicateRows": zod.number(),
@@ -179,7 +256,9 @@ export const GetDocumentPdfResponse = zod.unknown()
  */
 export const listLocationsQueryLimitDefault = 100;
 export const listLocationsQueryLimitMax = 500;
+
 export const listLocationsQueryOffsetDefault = 0;
+export const listLocationsQueryOffsetMin = 0;
 
 
 
@@ -191,7 +270,7 @@ export const ListLocationsQueryParams = zod.object({
   "documentId": zod.coerce.string().optional(),
   "reviewStatus": zod.enum(['Needs review', 'Approved', 'Rejected']).optional(),
   "limit": zod.coerce.number().min(1).max(listLocationsQueryLimitMax).default(listLocationsQueryLimitDefault),
-  "offset": zod.coerce.number().min(0).default(listLocationsQueryOffsetDefault)
+  "offset": zod.coerce.number().min(listLocationsQueryOffsetMin).default(listLocationsQueryOffsetDefault)
 })
 
 export const ListLocationsResponseItem = zod.object({
@@ -334,3 +413,5 @@ export const UpdateLocationResponse = zod.object({
   "phone": zod.string().nullable()
 }))
 })
+
+

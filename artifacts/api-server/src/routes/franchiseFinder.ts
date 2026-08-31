@@ -18,6 +18,8 @@ import {
   ListLocationsResponse,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  RerunDocumentParams,
+  RerunDocumentResponse,
   UpdateLocationBody,
   UpdateLocationResponse,
   UploadDocumentBody,
@@ -198,6 +200,44 @@ router.post("/documents", async (req, res, next) => {
     });
     void processFddDocument(document.id, body.objectPath);
     res.status(201).json(UploadDocumentResponse.parse(await toDocument(document)));
+    return;
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/documents/:documentId/rerun", async (req, res, next): Promise<void> => {
+  try {
+    const params = RerunDocumentParams.parse(req.params);
+    const [existing] = await db
+      .select()
+      .from(fddDocumentsTable)
+      .where(eq(fddDocumentsTable.id, params.documentId))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Document not found" });
+      return;
+    }
+    if (!existing.objectPath) {
+      res.status(409).json({ error: "This document has no stored source PDF to rerun" });
+      return;
+    }
+    if (existing.processingStatus === "Processing") {
+      res.status(409).json({ error: "This document is already processing" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(fddDocumentsTable)
+      .set({ processingStatus: "Processing" })
+      .where(eq(fddDocumentsTable.id, existing.id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Document not found" });
+      return;
+    }
+    void processFddDocument(updated.id, existing.objectPath);
+    res.status(202).json(RerunDocumentResponse.parse(await toDocument(updated)));
     return;
   } catch (error) {
     return next(error);
