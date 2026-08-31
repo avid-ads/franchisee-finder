@@ -13,9 +13,14 @@ status?: ListLocationsStatus;
 franchisor?: string;
 state?: string;
 documentId?: string;
+reviewStatus?: 'Needs review' | 'Approved' | 'Rejected';
 /**
  * @minimum 1
  * @maximum 500
  */
 limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 };

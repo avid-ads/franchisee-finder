@@ -131,9 +131,17 @@ paths:
         - name: documentId
           in: query
           schema: { type: string }
+        - name: reviewStatus
+          in: query
+          schema:
+            type: string
+            enum: [Needs review, Approved, Rejected]
         - name: limit
           in: query
           schema: { type: number, minimum: 1, maximum: 500, default: 100 }
+        - name: offset
+          in: query
+          schema: { type: number, minimum: 0, default: 0 }
       responses:
         "200":
           description: Matching locations
@@ -266,6 +274,7 @@ components:
         unchangedRows: { type: number }
         ambiguousRows: { type: number }
         collapsedRows: { type: number }
+        removedRows: { type: number }
         warnings:
           type: array
           items: { type: string }

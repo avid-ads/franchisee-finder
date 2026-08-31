@@ -53,7 +53,7 @@ export default function Dashboard() {
         : 15_000,
     },
   });
-  const { data: health } = useHealthCheck();
+  const { data: health, isLoading: healthLoading, isError: healthError } = useHealthCheck();
   const [, setLocation] = useWouterLocation();
   const [search, setSearch] = useState("");
   const [franchisor, setFranchisor] = useState("all");
@@ -232,7 +232,8 @@ export default function Dashboard() {
                       )}
                       <div className={cn(
                         "px-3 py-1 border-2 border-foreground font-bold text-xs uppercase tracking-wider rounded-full",
-                        doc.processingStatus === "Completed" ? "bg-emerald-300" : 
+                        ["Completed", "Ready"].includes(doc.processingStatus) ? "bg-emerald-300" :
+                        doc.processingStatus === "Needs review" ? "bg-amber-300" :
                         doc.processingStatus === "Failed" ? "bg-rose-400" : "bg-accent animate-pulse"
                       )}>
                         {doc.processingStatus}
@@ -273,7 +274,7 @@ export default function Dashboard() {
               ) : recentDocs.filter(d => d.stages && d.stages.length > 0).length > 0 ? (
                 recentDocs.slice(0, 4).map((doc) => {
                   const latestStage = doc.stages[doc.stages.length - 1];
-                  const isDone = latestStage.status === "Completed";
+                  const isDone = latestStage.status === "Complete" || latestStage.status === "Completed";
                   return (
                     <div key={doc.id} className="flex gap-4">
                       <div className="flex flex-col items-center">
@@ -306,8 +307,8 @@ export default function Dashboard() {
             
             <div className="mt-8 pt-4 border-t-2 border-foreground/10 font-mono text-xs font-bold uppercase tracking-widest flex items-center justify-between">
               <span>Status</span>
-              <span className={health?.status === "ok" ? "text-emerald-600" : "text-destructive"}>
-                {health?.status === "ok" ? "Operational" : "Degraded"}
+              <span className={healthLoading ? "text-amber-700" : health?.status === "ok" ? "text-emerald-600" : "text-destructive"}>
+                {healthLoading ? "Checking" : healthError ? "Unavailable" : health?.status === "ok" ? "Operational" : "Degraded"}
               </span>
             </div>
           </div>

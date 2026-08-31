@@ -10,7 +10,7 @@ import { useHealthCheck } from "@workspace/api-client-react";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { data: health } = useHealthCheck();
+  const { data: health, isLoading: healthLoading, isError: healthError } = useHealthCheck();
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -54,8 +54,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="p-4 mt-auto">
           <div className="brutal-card rounded-xl p-4 flex items-center gap-3 text-sm font-bold uppercase tracking-wider bg-card">
-            <div className={cn("w-3 h-3 rounded-full border-2 border-foreground animate-pulse", health?.status === "ok" ? "bg-emerald-400" : "bg-destructive")} />
-            <span>Sys Status: {health?.status === "ok" ? "OK" : "ERR"}</span>
+            <div className={cn(
+              "w-3 h-3 rounded-full border-2 border-foreground",
+              healthLoading ? "bg-amber-300 animate-pulse" : health?.status === "ok" ? "bg-emerald-400" : "bg-destructive",
+            )} />
+            <span>Sys Status: {healthLoading ? "CHECK" : healthError ? "ERR" : health?.status === "ok" ? "OK" : "ERR"}</span>
           </div>
         </div>
       </aside>

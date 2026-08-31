@@ -114,11 +114,11 @@ router.get("/stats", async (_req, res, next) => {
     const rows = await db
       .select({
         documents: sql<number>`count(distinct ${fddDocumentsTable.id})`,
-        totalLocations: sql<number>`count(${franchiseLocationsTable.id})`,
-        current: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.status} = 'Current')`,
-        former: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.status} = 'Former')`,
-        planning: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.status} = 'Planning')`,
-        needsReview: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.reviewStatus} = 'Needs review')`,
+        totalLocations: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${fddDocumentsTable.processingStatus} in ('Ready', 'Needs review', 'Completed'))`,
+        current: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.status} = 'Current' and ${fddDocumentsTable.processingStatus} in ('Ready', 'Needs review', 'Completed'))`,
+        former: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.status} = 'Former' and ${fddDocumentsTable.processingStatus} in ('Ready', 'Needs review', 'Completed'))`,
+        planning: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.status} = 'Planning' and ${fddDocumentsTable.processingStatus} in ('Ready', 'Needs review', 'Completed'))`,
+        needsReview: sql<number>`count(${franchiseLocationsTable.id}) filter (where ${franchiseLocationsTable.reviewStatus} = 'Needs review' and ${fddDocumentsTable.processingStatus} in ('Ready', 'Needs review', 'Completed'))`,
       })
       .from(fddDocumentsTable)
       .leftJoin(franchiseLocationsTable, eq(franchiseLocationsTable.documentId, fddDocumentsTable.id));
@@ -255,7 +255,9 @@ router.get("/locations", async (req, res, next) => {
     if (query.status) conditions.push(eq(franchiseLocationsTable.status, query.status));
     if (query.franchisor) conditions.push(eq(franchiseLocationsTable.franchisor, query.franchisor));
     if (query.documentId) conditions.push(eq(franchiseLocationsTable.documentId, query.documentId));
+    else conditions.push(sql`${franchiseLocationsTable.documentId} in (select id from fdd_documents where processing_status in ('Ready', 'Needs review', 'Completed'))`);
     if (query.state) conditions.push(eq(franchiseLocationsTable.state, query.state));
+    if (query.reviewStatus) conditions.push(eq(franchiseLocationsTable.reviewStatus, query.reviewStatus));
     if (query.q) {
       const pattern = `%${query.q}%`;
       conditions.push(
@@ -274,7 +276,8 @@ router.get("/locations", async (req, res, next) => {
       .from(franchiseLocationsTable)
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(asc(franchiseLocationsTable.franchiseName), asc(franchiseLocationsTable.state), asc(franchiseLocationsTable.city))
-      .limit(query.limit ?? 100);
+      .limit(query.limit ?? 100)
+      .offset(query.offset ?? 0);
     return void res.json(ListLocationsResponse.parse(rows.map((row) => toLocation(row))));
   } catch (error) {
     return next(error);

@@ -176,7 +176,7 @@ test("accepts full state names in conventional location tables", () => {
   );
   assert.equal(candidate?.state, "AL");
   assert.equal(candidate?.city, "Auburn");
-  assert.equal(candidate?.franchiseeEntity, "1. Hayes, Taylor");
+  assert.equal(candidate?.franchiseeEntity, "Hayes, Taylor");
 });
 
 test("extracts a ZIP when phone and franchisee details share the ZIP cell", () => {
@@ -191,6 +191,7 @@ test("extracts a ZIP when phone and franchisee details share the ZIP cell", () =
   assert.equal(candidate?.city, "Citrus Heights");
   assert.equal(candidate?.state, "CA");
   assert.equal(candidate?.zip, "95610");
+  assert.equal(candidate?.franchiseeEntity, "Auburn Fitness, Inc");
 });
 
 test("parses combined city/state rows and preserves contact and source citations", () => {

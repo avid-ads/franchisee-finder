@@ -39,6 +39,7 @@ export type FddExtractionManifest = {
   unchangedRows?: number;
   ambiguousRows?: number;
   collapsedRows?: number;
+  removedRows?: number;
   warnings: string[];
   complete: boolean;
 };

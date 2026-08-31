@@ -104,7 +104,7 @@ export default function Documents() {
           ))
         ) : filteredDocs.length > 0 ? (
           filteredDocs.map((doc) => {
-            const isSuccess = doc.processingStatus === "Completed" || doc.processingStatus === "Ready";
+            const isSuccess = ["Completed", "Ready", "Needs review"].includes(doc.processingStatus);
             const isFailed = doc.processingStatus === "Failed";
             
             return (
@@ -149,6 +149,7 @@ export default function Documents() {
                       <div className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Pipeline Status</div>
                       <div className={cn(
                         "px-4 py-1.5 border-2 border-foreground font-bold text-sm uppercase tracking-wider rounded-full brutal-shadow-sm",
+                        doc.processingStatus === "Needs review" ? "bg-amber-300" :
                         isSuccess ? "bg-emerald-300" : 
                         isFailed ? "bg-rose-400" : "bg-accent animate-pulse"
                       )}>
@@ -201,6 +202,10 @@ export default function Documents() {
 
                         {(doc.extractionManifest.collapsedRows ?? 0) > 0 && (
                           <MetricBadge label="Consolidated" value={doc.extractionManifest.collapsedRows ?? 0} color="text-blue-700" bg="bg-blue-100" border="border-blue-200" />
+                        )}
+
+                        {(doc.extractionManifest.removedRows ?? 0) > 0 && (
+                          <MetricBadge label="Stale Removed" value={doc.extractionManifest.removedRows ?? 0} color="text-blue-700" bg="bg-blue-100" border="border-blue-200" />
                         )}
                         
                         {(doc.extractionManifest.rejectedRows > 0 || doc.extractionManifest.duplicateRows > 0) && (

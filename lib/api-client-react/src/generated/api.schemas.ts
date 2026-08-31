@@ -78,6 +78,7 @@ export interface FddExtractionManifest {
   unchangedRows?: number;
   ambiguousRows?: number;
   collapsedRows?: number;
+  removedRows?: number;
   warnings: string[];
   complete: boolean;
 }
@@ -246,11 +247,16 @@ status?: ListLocationsStatus;
 franchisor?: string;
 state?: string;
 documentId?: string;
+reviewStatus?: 'Needs review' | 'Approved' | 'Rejected';
 /**
  * @minimum 1
  * @maximum 500
  */
 limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 };
 
 export type ListLocationsStatus = typeof ListLocationsStatus[keyof typeof ListLocationsStatus];

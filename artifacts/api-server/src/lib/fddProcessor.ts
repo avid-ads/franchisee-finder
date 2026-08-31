@@ -74,6 +74,7 @@ export type ReconciliationResult = {
   unchangedRows: number;
   ambiguousRows: number;
   collapsedRows: number;
+  removedRows: number;
 };
 
 function uniqueNumbers(values: number[]) {
@@ -84,6 +85,71 @@ const PLACEHOLDER_VALUE = /^(?:n\/?a|none|unknown|not (?:listed|disclosed|availa
 
 function meaningful(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && !PLACEHOLDER_VALUE.test(value.trim());
+}
+
+const PHONE_PATTERN = /(?<!\d)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)/;
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+const ENTITY_END_PATTERN = /\b(?:L\.?\s*L\.?\s*C\.?|I\.?\s*N\.?\s*C\.?|INCORPORATED|CORP(?:ORATION)?\.?|LTD\.?|LIMITED|L\.?\s*P\.?|L\.?\s*L\.?\s*P\.?|LLP|COMPANY|CO\.?)\b/i;
+const HEADER_OR_NOTE_PATTERN = /^(?:current|former|planning|franchisees?|franchisee name|owner|primary contact|phone|email|address|city|state|zip|location|store|studio|territory|total|notes?|continued|exhibit|item\s*20)\b/i;
+
+/**
+ * Cleans extraction artifacts before a row is persisted. In particular, PDF
+ * cells often concatenate a legal entity, contact name, and phone number.
+ */
+export function sanitizeCandidate(candidate: FranchisorCandidate): FranchisorCandidate {
+  const next = { ...candidate };
+  const source = next.rawSourceText ?? "";
+  next.phone ??= source.match(PHONE_PATTERN)?.[0] ?? null;
+  next.email ??= source.match(EMAIL_PATTERN)?.[0] ?? null;
+
+  let entity = next.franchiseeEntity
+    ?.replace(/^\s*\d+[.)]?\s*/, "")
+    .replace(EMAIL_PATTERN, " ")
+    .replace(PHONE_PATTERN, " ")
+    .replace(/\s+/g, " ")
+    .trim() ?? "";
+  const entityEnd = entity.match(ENTITY_END_PATTERN);
+  if (entityEnd?.index !== undefined) {
+    entity = entity.slice(0, entityEnd.index + entityEnd[0].length).trim();
+  }
+  if (
+    !entity
+    || HEADER_OR_NOTE_PATTERN.test(entity)
+    || entity.length > 160
+    || /(?:table of contents|franchise disclosure document|see notes? below)/i.test(entity)
+  ) {
+    next.franchiseeEntity = null;
+  } else {
+    next.franchiseeEntity = entity.replace(/[|;,]+$/, "").trim() || null;
+  }
+  return next;
+}
+
+/** Scores field-level evidence instead of trusting one parser-wide constant. */
+export function scoreCandidate(candidate: FranchisorCandidate) {
+  const hasAddress = meaningful(candidate.address) && /^\d+\s+\S+/.test(candidate.address.trim());
+  const hasGeo = meaningful(candidate.city) && /^[A-Z]{2}$/.test(candidate.state ?? "");
+  const hasZip = /^\d{5}(?:-\d{4})?$/.test(candidate.zip ?? "");
+  const hasEntity = meaningful(candidate.franchiseeEntity);
+  const hasContact = Boolean(candidate.phone || candidate.email);
+  const hasCitation = Boolean(candidate.sourceSection || candidate.sourceExhibit);
+
+  let confidence = 0.15;
+  if (hasAddress) confidence += 0.3;
+  if (hasGeo) confidence += 0.15;
+  if (hasZip) confidence += 0.1;
+  if (hasEntity) confidence += 0.15;
+  if (hasContact) confidence += 0.05;
+  if (hasCitation) confidence += 0.05;
+  if (!hasAddress) confidence = Math.min(confidence, 0.58);
+  if (!hasEntity) confidence = Math.min(confidence, 0.68);
+
+  const issues: string[] = [];
+  if (!hasAddress) issues.push("street address was not disclosed or could not be normalized");
+  if (!hasGeo) issues.push("city/state is incomplete");
+  if (!hasEntity) issues.push("franchisee or legal entity was not confidently identified");
+  if (!hasZip && hasAddress) issues.push("ZIP code is missing or malformed");
+  return { confidence: Number(Math.max(0.05, Math.min(0.95, confidence)).toFixed(3)), issues };
 }
 
 function normalizeIdentityText(value: string | null | undefined) {
@@ -462,7 +528,9 @@ export function reconcileFranchiseCandidates(
       sourceExhibit: incoming.location.sourceExhibit,
       sourceSection: incoming.location.sourceSection,
       rawSourceText: incoming.location.rawSourceText,
-      confidence: Math.max(before.confidence ?? 0.8, incoming.location.confidence ?? 0.8),
+      confidence: preserveReviewedValues
+        ? before.confidence
+        : incoming.location.confidence,
       reviewStatus: preserveReviewedValues
         ? before.reviewStatus
         : incoming.location.reviewStatus,
@@ -490,19 +558,29 @@ export function reconcileFranchiseCandidates(
     }
   }
 
+  const incomingDocumentId = incomingCandidates[0]?.location.documentId;
+  const deleteLocationIds = incomingDocumentId
+    ? existingLocations
+        .filter((location) =>
+          location.documentId === incomingDocumentId
+          && !touchedExistingIds.has(location.id),
+        )
+        .map((location) => location.id)
+    : [];
   const finalRecords = records.filter((record) =>
     !record.existingId
     || touchedExistingIds.has(record.existingId),
   );
   return {
     records: finalRecords,
-    deleteLocationIds: [],
+    deleteLocationIds,
     addedRows: finalRecords.filter((record) => !record.existingId).length,
     matchedRows: touchedExistingIds.size,
     updatedRows: updatedExistingIds.size,
     unchangedRows: touchedExistingIds.size - updatedExistingIds.size,
     ambiguousRows,
     collapsedRows: 0,
+    removedRows: deleteLocationIds.length,
   };
 }
 
@@ -776,7 +854,16 @@ export async function processFddDocument(
     let duplicateRows = 0;
     const pagesExamined: number[] = [];
 
-    const acceptCandidate = (candidate: FranchisorCandidate) => {
+    const acceptCandidate = (rawCandidate: FranchisorCandidate) => {
+      const candidate = sanitizeCandidate(rawCandidate);
+      const quality = scoreCandidate(candidate);
+      candidate.confidence = quality.confidence;
+      if (quality.issues.length) {
+        candidate.reviewStatus = "Needs review";
+        candidate.reviewReason = quality.issues.join("; ");
+      } else {
+        candidate.reviewReason = "Complete row extracted from a verified franchisee section";
+      }
       const pageData = pdfPages.get(candidate.sourcePage);
       if (pageData?.ocr) {
         const confidenceMultiplier = pageData.ocrConfidence ?? 0.5;
@@ -1014,12 +1101,16 @@ export async function processFddDocument(
         unchangedRows: reconciliation.unchangedRows,
         ambiguousRows: reconciliation.ambiguousRows,
         collapsedRows: reconciliation.collapsedRows,
+        removedRows: reconciliation.removedRows,
       });
       if (reconciliation.ambiguousRows) {
         warnings.push(`${reconciliation.ambiguousRows} possible duplicate matches require review`);
       }
       if (reconciliation.collapsedRows) {
         warnings.push(`${reconciliation.collapsedRows} existing duplicate records were safely consolidated`);
+      }
+      if (reconciliation.removedRows) {
+        warnings.push(`${reconciliation.removedRows} stale rows from the replaced extraction were removed`);
       }
 
       if (reconciliation.deleteLocationIds.length) {
@@ -1086,6 +1177,18 @@ export async function processFddDocument(
           lastProcessedAt: new Date(),
         })
         .where(eq(fddDocumentsTable.id, documentId));
+      const olderDocumentIds = brandDocuments
+        .filter((document) =>
+          document.id !== documentId
+          && document.uploadDate <= (currentDocument?.uploadDate ?? documentRow.uploadDate),
+        )
+        .map((document) => document.id);
+      if (olderDocumentIds.length) {
+        await transaction
+          .update(fddDocumentsTable)
+          .set({ processingStatus: "Superseded" })
+          .where(inArray(fddDocumentsTable.id, olderDocumentIds));
+      }
       return true;
     });
     if (!committed) return;

@@ -13,7 +13,10 @@ import {
   XCircle,
   AlertCircle,
   Building2,
-  ListFilter
+  ListFilter,
+  ChevronLeft,
+  ChevronRight,
+  Phone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +24,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LocationDetail } from "@/components/locations/location-detail";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { 
   Select, 
   SelectContent, 
@@ -47,7 +58,10 @@ export default function Locations() {
   const franchisorParam = searchParams.get("franchisor") || undefined;
   const stateParam = searchParams.get("state") || undefined;
   const documentId = searchParams.get("documentId") || undefined;
+  const reviewStatus = searchParams.get("reviewStatus") || undefined;
+  const offset = Math.max(0, Number(searchParams.get("offset") || 0));
   const selectedId = searchParams.get("id") || undefined;
+  const pageSize = 50;
 
   const { data: documents } = useListDocuments();
   const { data: locations, isLoading } = useListLocations({
@@ -56,7 +70,9 @@ export default function Locations() {
     franchisor: franchisorParam,
     state: stateParam,
     documentId,
-    limit: 100
+    reviewStatus: reviewStatus as any,
+    limit: pageSize,
+    offset,
   });
   const franchisorOptions = Array.from(
     new Set(documents?.map((document) => document.franchiseName).filter(Boolean) ?? []),
@@ -74,6 +90,10 @@ export default function Locations() {
     setLocation(`/locations?${newParams.toString()}`);
   };
 
+  const updateFilters = (updates: Record<string, string | null>) => {
+    updateSearch({ ...updates, offset: null, id: null });
+  };
+
   const handleSelect = (id: string) => {
     updateSearch({ id });
   };
@@ -88,7 +108,7 @@ export default function Locations() {
       {/* Explorer Pane */}
       <div className={cn(
         "flex flex-col border-r-4 border-foreground bg-secondary transition-all duration-300",
-        selectedId ? "hidden lg:flex w-full lg:w-[450px] xl:w-[500px] shrink-0" : "w-full flex-1"
+        selectedId ? "hidden lg:flex w-full lg:w-[56%] shrink-0" : "w-full flex-1"
       )}>
         
         {/* Search Header */}
@@ -112,18 +132,18 @@ export default function Locations() {
                 defaultValue={q}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    updateSearch({ q: e.currentTarget.value || null });
+                    updateFilters({ q: e.currentTarget.value || null });
                   }
                 }}
-                onBlur={(e) => updateSearch({ q: e.target.value || null })}
+                onBlur={(e) => updateFilters({ q: e.target.value || null })}
                 data-testid="input-locations-search"
               />
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               <Select
                 value={franchisorParam || "all"}
-                onValueChange={(val) => updateSearch({ franchisor: val === "all" ? null : val })}
+                onValueChange={(val) => updateFilters({ franchisor: val === "all" ? null : val })}
               >
                 <SelectTrigger className="h-10 border-2 border-foreground rounded-lg bg-card brutal-shadow-sm font-bold uppercase tracking-wider text-xs" data-testid="select-loc-franchisor">
                   <SelectValue placeholder="Brand" />
@@ -137,7 +157,7 @@ export default function Locations() {
               </Select>
               <Select
                 value={stateParam || "all"}
-                onValueChange={(val) => updateSearch({ state: val === "all" ? null : val })}
+                onValueChange={(val) => updateFilters({ state: val === "all" ? null : val })}
               >
                 <SelectTrigger className="h-10 border-2 border-foreground rounded-lg bg-card brutal-shadow-sm font-bold uppercase tracking-wider text-xs" data-testid="select-loc-state">
                   <SelectValue placeholder="State" />
@@ -151,7 +171,7 @@ export default function Locations() {
               </Select>
               <Select
                 value={statusParam || "all"}
-                onValueChange={(val) => updateSearch({ status: val === "all" ? null : val })}
+                onValueChange={(val) => updateFilters({ status: val === "all" ? null : val })}
               >
                 <SelectTrigger className="h-10 border-2 border-foreground rounded-lg bg-card brutal-shadow-sm font-bold uppercase tracking-wider text-xs" data-testid="select-loc-status">
                   <SelectValue placeholder="Status" />
@@ -163,10 +183,24 @@ export default function Locations() {
                   <SelectItem value="Planning">Planning</SelectItem>
                 </SelectContent>
               </Select>
+              <Select
+                value={reviewStatus || "all"}
+                onValueChange={(val) => updateFilters({ reviewStatus: val === "all" ? null : val })}
+              >
+                <SelectTrigger className="h-10 border-2 border-foreground rounded-lg bg-card brutal-shadow-sm font-bold uppercase tracking-wider text-xs" data-testid="select-loc-review">
+                  <SelectValue placeholder="Review" />
+                </SelectTrigger>
+                <SelectContent className="border-2 border-foreground brutal-shadow rounded-xl font-bold uppercase tracking-wider text-xs">
+                  <SelectItem value="all">All Review</SelectItem>
+                  <SelectItem value="Needs review">Needs Review</SelectItem>
+                  <SelectItem value="Approved">Approved</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {(documentId || franchisorParam || stateParam || statusParam) && (
+          {(documentId || franchisorParam || stateParam || statusParam || reviewStatus || q) && (
             <div className="flex items-center justify-between bg-foreground text-background px-4 py-2 rounded-lg text-xs font-mono font-bold uppercase tracking-widest brutal-shadow-sm">
               <span className="flex items-center gap-2">
                 <ListFilter className="w-4 h-4" /> Filters Active
@@ -175,7 +209,7 @@ export default function Locations() {
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 hover:bg-background/20 hover:text-background text-background/80 rounded"
-                onClick={() => updateSearch({ documentId: null, franchisor: null, state: null, status: null, q: null })}
+                onClick={() => updateSearch({ documentId: null, franchisor: null, state: null, status: null, reviewStatus: null, q: null, offset: null, id: null })}
                 data-testid="button-clear-filters"
               >
                 <XCircle className="w-4 h-4" />
@@ -184,19 +218,14 @@ export default function Locations() {
           )}
         </div>
 
-        {/* List Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 relative z-10 bg-secondary/50">
+        {/* Data table */}
+        <div className="flex-1 min-h-0 flex flex-col relative z-10 bg-secondary/50">
           {isLoading ? (
-            Array(6).fill(0).map((_, i) => (
-              <div key={i} className="brutal-card rounded-xl p-4 space-y-3">
-                <Skeleton className="h-6 w-3/4 bg-foreground/10 rounded" />
-                <Skeleton className="h-4 w-1/2 bg-foreground/10 rounded" />
-                <div className="flex justify-between pt-2">
-                  <Skeleton className="h-6 w-20 bg-foreground/10 rounded-full" />
-                  <Skeleton className="h-6 w-16 bg-foreground/10 rounded-full" />
-                </div>
-              </div>
-            ))
+            <div className="p-4 space-y-2">
+              {Array(8).fill(0).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full bg-foreground/10 rounded-lg" />
+              ))}
+            </div>
           ) : locations?.length === 0 ? (
             <div className="py-20 text-center flex flex-col items-center px-4">
               <div className="w-16 h-16 border-2 border-foreground bg-background rounded-xl flex items-center justify-center mb-4 opacity-50 transform rotate-6">
@@ -206,60 +235,89 @@ export default function Locations() {
               <p className="font-mono text-xs font-bold text-muted-foreground uppercase tracking-widest mt-2">Adjust your filters</p>
             </div>
           ) : (
-            locations?.map((loc) => {
-              const StatusIcon = 
-                loc.status === "Current" ? Store :
-                loc.status === "Former" ? MapPinOff : ClipboardCheck;
-              
-              const isSelected = selectedId === loc.id;
-              
-              return (
-                <div
-                  key={loc.id}
-                  onClick={() => handleSelect(loc.id)}
-                  data-testid={`location-card-${loc.id}`}
-                  className={cn(
-                    "p-4 rounded-xl border-2 transition-all cursor-pointer brutal-shadow-sm group",
-                    isSelected 
-                      ? "bg-primary border-foreground text-primary-foreground translate-x-1" 
-                      : "bg-card border-foreground hover:-translate-y-1 hover:brutal-shadow-hover"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="font-display font-black text-lg uppercase tracking-tight leading-tight line-clamp-2">
-                      {loc.franchiseeEntity || loc.franchiseName}
-                    </div>
-                    {loc.reviewStatus === "Needs review" && (
-                      <AlertCircle className={cn("w-5 h-5 shrink-0 stroke-[2.5]", isSelected ? "text-primary-foreground" : "text-rose-500")} />
-                    )}
-                  </div>
-                  
-                  <div className={cn("font-mono text-xs font-bold uppercase tracking-widest mb-1.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
-                    {loc.franchisor || loc.franchiseName}
-                  </div>
-                  
-                  <div className={cn("font-sans font-medium text-sm mb-4 line-clamp-1", isSelected ? "text-primary-foreground/90" : "text-foreground/80")}>
-                    {loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.address || "Address not extracted"}
-                  </div>
-                  
-                  <div className="flex items-center justify-between pt-3 border-t-2 border-foreground/10">
-                    <div className={cn(
-                      "flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-widest px-2 py-1 rounded border-2 border-transparent",
-                      isSelected ? "text-primary-foreground border-primary-foreground/20 bg-primary-foreground/10" : 
-                      loc.status === "Current" ? "text-emerald-700 bg-emerald-100 border-emerald-200" :
-                      loc.status === "Former" ? "text-amber-700 bg-amber-100 border-amber-200" : "text-blue-700 bg-blue-100 border-blue-200"
-                    )}>
-                      <StatusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                      {loc.status}
-                    </div>
-                    
-                    <div className={cn("font-mono text-xs font-bold uppercase tracking-widest flex items-center gap-1", isSelected ? "text-primary-foreground" : "text-foreground/60")}>
-                      {(loc.confidence * 100).toFixed(0)}% CONF
-                    </div>
-                  </div>
+            <>
+              <div className="flex-1 overflow-auto">
+                <Table className="min-w-[900px]">
+                  <TableHeader className="sticky top-0 z-10 bg-card">
+                    <TableRow className="border-b-2 border-foreground hover:bg-card">
+                      <TableHead>Franchisee / Entity</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Review</TableHead>
+                      <TableHead className="text-right">Confidence</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {locations?.map((loc) => {
+                      const isSelected = selectedId === loc.id;
+                      return (
+                        <TableRow
+                          key={loc.id}
+                          onClick={() => handleSelect(loc.id)}
+                          data-testid={`location-row-${loc.id}`}
+                          className={cn(
+                            "cursor-pointer border-b border-foreground/15",
+                            isSelected ? "bg-primary/15" : "bg-card hover:bg-accent/60",
+                          )}
+                        >
+                          <TableCell className="font-semibold max-w-[260px]">
+                            <div className="truncate">{loc.franchiseeEntity || "Franchisee not identified"}</div>
+                            {loc.locationCode && <div className="text-xs text-muted-foreground mt-1">#{loc.locationCode}</div>}
+                          </TableCell>
+                          <TableCell className="font-medium">{loc.franchisor || loc.franchiseName}</TableCell>
+                          <TableCell>
+                            <div>{loc.city && loc.state ? `${loc.city}, ${loc.state}` : "Location incomplete"}</div>
+                            <div className="text-xs text-muted-foreground truncate max-w-[220px]">{loc.address || "Address not extracted"}</div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex rounded-full border px-2 py-1 text-xs font-semibold",
+                              loc.status === "Current" ? "bg-emerald-100 text-emerald-800" :
+                              loc.status === "Former" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800",
+                            )}>{loc.status}</span>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {loc.phone ? <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{loc.phone}</span> : <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold",
+                              loc.reviewStatus === "Approved" ? "bg-emerald-100 text-emerald-800" :
+                              loc.reviewStatus === "Rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-900",
+                            )}>
+                              {loc.reviewStatus === "Needs review" && <AlertCircle className="h-3.5 w-3.5" />}
+                              {loc.reviewStatus}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold">{Math.round(loc.confidence * 100)}%</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex items-center justify-between border-t-2 border-foreground bg-card px-4 py-3">
+                <div className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
+                  Showing {offset + 1}–{offset + (locations?.length ?? 0)}
                 </div>
-              );
-            })
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={offset === 0}
+                    onClick={() => updateSearch({ offset: String(Math.max(0, offset - pageSize)), id: null })}
+                  ><ChevronLeft className="h-4 w-4" /> Previous</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={(locations?.length ?? 0) < pageSize}
+                    onClick={() => updateSearch({ offset: String(offset + pageSize), id: null })}
+                  >Next <ChevronRight className="h-4 w-4" /></Button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>

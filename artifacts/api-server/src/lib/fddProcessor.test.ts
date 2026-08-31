@@ -15,6 +15,8 @@ import {
   processFddDocument,
   reconcileFranchiseCandidates,
   locationIdentityKeys,
+  sanitizeCandidate,
+  scoreCandidate,
   type ExtractedCandidate,
 } from "./fddProcessor.ts";
 
@@ -368,6 +370,46 @@ test("matches normalized addresses without rewriting equally good values", () =>
   assert.equal(result.records[0].location.documentId, "new-document");
 });
 
+test("reprocessing replaces stale rows from the same document and refreshes confidence", () => {
+  const result = reconcileFranchiseCandidates(
+    [incoming({ documentId: "same-document", confidence: 0.42 })],
+    [
+      location({ id: "matched", documentId: "same-document", confidence: 0.94 }),
+      location({ id: "stale", documentId: "same-document", locationCode: "HW-200", address: "9 Old Road" }),
+    ],
+    [],
+  );
+
+  assert.deepEqual(result.deleteLocationIds, ["stale"]);
+  assert.equal(result.removedRows, 1);
+  assert.equal(result.records[0].location.confidence, 0.42);
+});
+
+test("cleans concatenated legal entity and contact data before scoring", () => {
+  const raw = incoming({
+    franchiseeEntity: "JTI Inc. John & Tasha Mendez 303-589-0985",
+    phone: null,
+    rawSourceText: "JTI Inc. John & Tasha Mendez 303-589-0985 | 123 Main Street | Denver, CO 80202",
+    sourceSection: "Current Franchisees",
+  }).location as any;
+  const cleaned = sanitizeCandidate(raw);
+  const scored = scoreCandidate(cleaned);
+
+  assert.equal(cleaned.franchiseeEntity, "JTI Inc");
+  assert.equal(cleaned.phone, "303-589-0985");
+  assert.equal(scored.confidence, 0.95);
+});
+
+test("missing addresses cannot receive high confidence", () => {
+  const raw = incoming({
+    address: "Address not disclosed",
+    zip: "",
+    phone: "303-589-0985",
+    sourceSection: "Former Franchisees",
+  }).location as any;
+  assert.ok(scoreCandidate(raw).confidence <= 0.58);
+});
+
 test("keeps ambiguous entity-and-geography matches separate and flags the new row", () => {
   const result = reconcileFranchiseCandidates(
     [incoming({ locationCode: null, address: null })],
@@ -650,7 +692,7 @@ test("processes a known-brand PDF through extraction, storage, and stage complet
   );
 
   assert.equal(fake.documents[0].franchiseName, "HOTWORX");
-  assert.equal(fake.documents[0].processingStatus, "Ready");
+  assert.equal(fake.documents[0].processingStatus, "Needs review");
   assert.equal(fake.documents[0].pageCount, 1);
   assert.equal(fake.candidates.length, 2);
   assert.ok(fake.candidates.every((candidate) =>
@@ -687,7 +729,7 @@ test("keeps the filename-derived brand when a generic legal Franchisor label is 
       && candidate.franchisor === "acme wellness",
   ));
   assert.match(fake.candidates[0].rawSourceText, /10 Oak Road.*Raleigh.*NC.*27601/);
-  assert.equal(fake.documents[0].processingStatus, "Ready");
+  assert.equal(fake.documents[0].processingStatus, "Needs review");
   assert.equal(fake.stages.length, 1);
   assert.equal(fake.stages[0].status, "Complete");
 });
@@ -715,7 +757,7 @@ test("keeps processing successful and uses the document name for a malformed lab
       && candidate.franchisor === "fallback wellness",
   ));
   assert.match(fake.candidates[0].rawSourceText, /99 Main Street.*Boise.*ID.*83702/);
-  assert.equal(fake.documents[0].processingStatus, "Ready");
+  assert.equal(fake.documents[0].processingStatus, "Needs review");
   assert.equal(fake.stages.length, 1);
   assert.equal(fake.stages[0].status, "Complete");
 });
@@ -764,7 +806,7 @@ for (const fixture of [
     assert.equal(fake.documents[0].processingStatus, "Ready");
     assert.equal(fake.candidates.length, 1);
     assert.equal(fake.candidates[0].status, fixture.status);
-    assert.equal(fake.candidates[0].confidence, 0.563);
+    assert.equal(fake.candidates[0].confidence, 0.792);
     assert.equal(fake.candidates[0].reviewStatus, "Needs review");
     assert.match(fake.candidates[0].reviewReason, /OCR confidence 88%/);
     assert.equal(fake.documents[0].extractionManifest?.discoveryMethod, "toc");

@@ -65,6 +65,7 @@ export const ListDocumentsResponseItem = zod.object({
   "unchangedRows": zod.number().optional(),
   "ambiguousRows": zod.number().optional(),
   "collapsedRows": zod.number().optional(),
+  "removedRows": zod.number().optional(),
   "warnings": zod.array(zod.string()),
   "complete": zod.boolean()
 }),zod.null()]),
@@ -126,6 +127,7 @@ export const UploadDocumentResponse = zod.object({
   "unchangedRows": zod.number().optional(),
   "ambiguousRows": zod.number().optional(),
   "collapsedRows": zod.number().optional(),
+  "removedRows": zod.number().optional(),
   "warnings": zod.array(zod.string()),
   "complete": zod.boolean()
 }),zod.null()]),
@@ -177,6 +179,7 @@ export const GetDocumentPdfResponse = zod.unknown()
  */
 export const listLocationsQueryLimitDefault = 100;
 export const listLocationsQueryLimitMax = 500;
+export const listLocationsQueryOffsetDefault = 0;
 
 
 
@@ -186,7 +189,9 @@ export const ListLocationsQueryParams = zod.object({
   "franchisor": zod.coerce.string().optional(),
   "state": zod.coerce.string().optional(),
   "documentId": zod.coerce.string().optional(),
-  "limit": zod.coerce.number().min(1).max(listLocationsQueryLimitMax).default(listLocationsQueryLimitDefault)
+  "reviewStatus": zod.enum(['Needs review', 'Approved', 'Rejected']).optional(),
+  "limit": zod.coerce.number().min(1).max(listLocationsQueryLimitMax).default(listLocationsQueryLimitDefault),
+  "offset": zod.coerce.number().min(0).default(listLocationsQueryOffsetDefault)
 })
 
 export const ListLocationsResponseItem = zod.object({
@@ -329,5 +334,3 @@ export const UpdateLocationResponse = zod.object({
   "phone": zod.string().nullable()
 }))
 })
-
-

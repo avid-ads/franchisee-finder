@@ -421,10 +421,28 @@ export function candidateFromCells(
   }
 
   const beforeAddress = normalized.slice(0, combinedCityState ? stateIndex - 1 : stateIndex - 2);
-  const franchiseeEntity = beforeAddress.filter((cell) => !/^(store|location|number|no\.?|#)$/i.test(cell)).join(" ") || null;
   const rawSourceText = normalized.join(" | ");
   const email = rawSourceText.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0] ?? null;
   const phone = rawSourceText.match(/(?<!\d)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)/)?.[0] ?? null;
+  const trailingDetails = normalized.slice(stateIndex + 1).map((cell) => cell
+    .replace(/^\d{5}(?:-\d{4})?\s*/, "")
+    .replace(/(?<!\d)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)/g, " ")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim());
+  const possibleEntities = [...beforeAddress, ...trailingDetails]
+    .map((cell) => cell.replace(/^\s*\d+[.)]?\s*/, "").trim())
+    .filter((cell) => cell && !/^(?:store|location|number|no\.?|#|primary contact|phone|email)$/i.test(cell));
+  const legalEntity = possibleEntities
+    .map((cell) => cell.match(/^(.+?\b(?:L\.?\s*L\.?\s*C\.?|I\.?\s*N\.?\s*C\.?|INCORPORATED|CORP(?:ORATION)?\.?|LTD\.?|LIMITED|L\.?\s*P\.?|L\.?\s*L\.?\s*P\.?|LLP|COMPANY|CO\.?))\b/i)?.[1]?.trim())
+    .find(Boolean);
+  const franchiseeEntity = legalEntity
+    ?? beforeAddress
+      .filter((cell) => !/^(?:\d+[.)]?|store|location|number|no\.?|#)$/i.test(cell))
+      .join(" ")
+      .replace(/^\s*\d+[.)]?\s*/, "")
+      .trim()
+    ?? null;
   const normalizedFranchisor = normalizeFranchisorValue(franchisor) || franchisor.trim();
 
   return {
@@ -432,7 +450,7 @@ export function candidateFromCells(
     franchiseName: normalizedFranchisor,
     franchisor: normalizedFranchisor,
     status: /(?:not yet opened|\bTBD\b)/i.test(rawSourceText) ? "Planning" : status,
-    franchiseeEntity,
+    franchiseeEntity: franchiseeEntity || null,
     address,
     city,
     state,
