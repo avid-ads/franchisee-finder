@@ -88,9 +88,6 @@ export default function Dashboard() {
           <h1 className="text-5xl md:text-7xl font-display font-black tracking-tighter text-foreground uppercase leading-[0.9] mb-4">
             Intelligence<br/><span className="text-primary">Workspace</span>
           </h1>
-          <p className="text-lg md:text-xl font-medium text-foreground/80 max-w-xl font-sans">
-            Turn dense FDD PDFs into actionable franchise intelligence with zero fluff.
-          </p>
         </div>
         <Link href="/documents" data-testid="link-upload-fdd">
           <Button size="lg" className="brutal-btn rounded-xl text-base px-8 py-6 gap-3 group bg-primary text-primary-foreground">

@@ -52,6 +52,11 @@ type InsertedCandidate = {
   franchiseName: string;
   franchisor: string;
   status: string;
+  franchiseeEntity?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   sourcePage: number;
   rawSourceText: string;
   confidence: number;
@@ -180,28 +185,43 @@ function createFakeDatabase(document: DocumentRow): FakeDatabase {
 }
 
 function createPdfFixture(lines: string[], withRasterImage = false) {
+  return createMultiPagePdfFixture([{ lines, withRasterImage }]);
+}
+
+function createMultiPagePdfFixture(
+  pages: Array<{ lines: string[]; withRasterImage?: boolean }>,
+) {
   const escapePdfText = (line: string) => line.replace(/([\\()])/g, "\\$1");
-  const content = [
-    ...(withRasterImage ? ["q", "500 0 0 700 50 50 cm", "/Im1 Do", "Q"] : []),
-    "BT",
-    "/F1 12 Tf",
-    ...lines.flatMap((line, index) => {
-      const y = 760 - index * 24;
-      const cells = line.split(" | ");
-      return cells.map(
-        (cell, cellIndex) =>
-          `1 0 0 1 ${36 + cellIndex * 125} ${y} Tm (${escapePdfText(cell)}) Tj`,
-      );
-    }),
-    "ET",
-  ].join("\n");
+  const fontObjectId = 3 + pages.length * 2;
+  const imageObjectId = fontObjectId + 1;
+  const hasRasterImage = pages.some((page) => page.withRasterImage);
+  const pageObjectIds = pages.map((_, index) => 3 + index * 2);
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >>${withRasterImage ? " /XObject << /Im1 6 0 R >>" : ""} >> /Contents 5 0 R >>`,
+    `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    ...pages.flatMap((page, index) => {
+      const contentObjectId = 4 + index * 2;
+      const content = [
+        ...(page.withRasterImage ? ["q", "500 0 0 700 50 50 cm", "/Im1 Do", "Q"] : []),
+        "BT",
+        "/F1 12 Tf",
+        ...page.lines.flatMap((line, lineIndex) => {
+          const y = 760 - lineIndex * 24;
+          const cells = line.split(" | ");
+          return cells.map(
+            (cell, cellIndex) =>
+              `1 0 0 1 ${36 + cellIndex * 125} ${y} Tm (${escapePdfText(cell)}) Tj`,
+          );
+        }),
+        "ET",
+      ].join("\n");
+      return [
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectId} 0 R >>${page.withRasterImage ? ` /XObject << /Im1 ${imageObjectId} 0 R >>` : ""} >> /Contents ${contentObjectId} 0 R >>`,
+        `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+      ];
+    }),
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-    ...(withRasterImage
+    ...(hasRasterImage
       ? ["<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\nx\nendstream"]
       : []),
   ];
@@ -273,7 +293,10 @@ async function createIsolatedPostgresDatabase() {
 function runProcessor(
   document: DocumentRow,
   fixture: Buffer,
-  ocrPage?: () => Promise<ReturnType<typeof parseTesseractTsv>>,
+  ocrPage?: (
+    pdfData: Uint8Array,
+    pageNumber: number,
+  ) => Promise<ReturnType<typeof parseTesseractTsv>>,
 ) {
   const fake = createFakeDatabase(document);
   return processFddDocument(document.id, `/objects/fixture/${document.id}`, {
@@ -745,6 +768,7 @@ test("keeps processing successful and uses the document name for a malformed lab
     },
     [
       "Franchisor: [not disclosed]",
+      "This disclosure contains searchable text sufficient to evaluate the listed franchise location without OCR.",
       "Current Franchisees",
       "Location 1 | 99 Main Street | Boise | ID | 83702",
     ],
@@ -795,12 +819,15 @@ for (const fixture of [
         pageCount: 0,
       },
       createPdfFixture([]),
-      async () => createOcrFixture([
-        [`EXHIBIT A ${fixture.tocTitle} ........ 1`],
-        ["EXHIBIT A"],
-        [fixture.heading],
-        fixture.row.split(" | "),
-      ], 0.88),
+      async (pdfData) => {
+        assert.ok(pdfData.byteLength > 0);
+        return createOcrFixture([
+          [`EXHIBIT A ${fixture.tocTitle} ........ 1`],
+          ["EXHIBIT A"],
+          [fixture.heading],
+          fixture.row.split(" | "),
+        ], 0.88);
+      },
     );
 
     assert.equal(fake.documents[0].processingStatus, "Ready");
@@ -841,7 +868,11 @@ test("OCRs a hybrid page whose incidental native text is not useful for discover
   );
 
   assert.equal(ocrCalls, 1);
-  assert.equal(fake.documents[0].processingStatus, "Ready");
+  assert.equal(
+    fake.documents[0].processingStatus,
+    "Ready",
+    fake.stages[0]?.message,
+  );
   assert.equal(fake.candidates.length, 1);
   assert.equal(fake.candidates[0].status, "Current");
   assert.deepEqual(fake.documents[0].extractionManifest?.ocrPages, [1]);
@@ -884,6 +915,66 @@ test("preserves a healthy corpus when OCR confidence is too low", async () => {
   assert.equal(fake.documents[0].processingStatus, "Failed");
   assert.equal(fake.stages[0].status, "Failed");
   assert.match(fake.stages[0].message ?? "", /OCR quality was too low.*existing location data was preserved/i);
+});
+
+test("allows incomplete OCR on pages outside the discovered source ranges", async () => {
+  const document: DocumentRow = {
+    id: "irrelevant-ocr-failure-document",
+    franchiseName: "Source Range Fixture",
+    filename: "source-range-fixture-2025.pdf",
+    processingStatus: "Processing",
+    pageCount: 2,
+  };
+  const fake = createFakeDatabase(document);
+  fake.candidates.push({
+    id: "existing-location",
+    documentId: document.id,
+    franchiseName: "Source Range Fixture",
+    franchisor: "Source Range Fixture",
+    status: "Current",
+    franchiseeEntity: "Jane Doe",
+    address: "123 Main Street",
+    city: "Austin",
+    state: "TX",
+    zip: "78701",
+    sourcePage: 2,
+    rawSourceText: "Previously verified row",
+    confidence: 0.9,
+    reviewStatus: "Approved",
+    reviewReason: "Previously verified",
+  });
+
+  await processFddDocument(document.id, "/objects/fixture/irrelevant-ocr-failure", {
+    db: fake.db,
+    getObjectFile: () => ({
+      download: async () => [createMultiPagePdfFixture([
+        { lines: [], withRasterImage: true },
+        {
+          lines: [
+            "Current Franchisees",
+            "Jane Doe | 123 Main Street | Austin, TX 78701 | 512-555-0100 | jane@example.com",
+            "This schedule lists current franchise locations and complete ownership contact information as of December 31, 2025.",
+          ],
+        },
+      ])],
+    }),
+    ocrPage: async (_data, pageNumber) => {
+      assert.equal(pageNumber, 1);
+      throw new Error("blank cover page");
+    },
+  });
+
+  assert.equal(
+    fake.documents[0].processingStatus,
+    "Ready",
+    fake.stages[0]?.message,
+  );
+  assert.equal(fake.stages[0].status, "Complete");
+  assert.equal(fake.candidates.length, 1);
+  assert.match(
+    fake.documents[0].extractionManifest?.warnings.join(" ") ?? "",
+    /OCR failed on page 1: blank cover page/,
+  );
 });
 
 test("marks a corrupt PDF and its extraction stage as failed without storing candidates", async () => {
@@ -981,7 +1072,7 @@ test("keeps a real PostgreSQL reupload idempotent", { skip: !process.env.DATABAS
       .from(fddDocumentsTable)
       .where(eq(fddDocumentsTable.id, documentId))
       .limit(1);
-    assert.equal(firstDocument?.processingStatus, "Ready");
+    assert.equal(firstDocument?.processingStatus, "Needs review");
     const firstLocations = await db
       .select()
       .from(franchiseLocationsTable)
@@ -1009,6 +1100,7 @@ test("keeps a real PostgreSQL reupload idempotent", { skip: !process.env.DATABAS
       .from(contactsTable)
       .where(inArray(contactsTable.locationId, secondLocations.map((location) => location.id)));
     const manifest = secondDocument?.extractionManifest;
+    assert.equal(secondDocument?.processingStatus, firstDocument?.processingStatus);
     assert.equal(manifest?.addedRows, 0);
     assert.equal(manifest?.updatedRows, 0);
     assert.equal(manifest?.unchangedRows, 2);

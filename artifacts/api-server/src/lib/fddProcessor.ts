@@ -712,7 +712,7 @@ export async function processFddDocument(
     const { getDocument, OPS } = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const [buffer] = await getProcessorObjectFile(objectPath).download();
     const pdfData = new Uint8Array(buffer);
-    const pdf = await getDocument({ data: pdfData }).promise;
+    const pdf = await getDocument({ data: pdfData.slice() }).promise;
     const pdfPages = new Map<number, {
       text: string;
       rows: string[][];
@@ -722,6 +722,7 @@ export async function processFddDocument(
     }>();
     const textPages: PdfTextPage[] = [];
     const ocrPages: number[] = [];
+    const incompleteOcrPages: number[] = [];
     const ocrConfidences: number[] = [];
     const ocrWarnings: string[] = [];
     let ocrAttempts = 0;
@@ -764,6 +765,7 @@ export async function processFddDocument(
           || Date.now() - ocrStartedAt >= OCR_MAX_DOCUMENT_MILLISECONDS
         ) {
           ocrIncomplete = true;
+          incompleteOcrPages.push(pageNumber);
           if (!ocrWarnings.some((warning) => /OCR work budget/i.test(warning))) {
             ocrWarnings.push(`OCR work budget was exhausted after ${ocrAttempts} pages`);
           }
@@ -794,10 +796,12 @@ export async function processFddDocument(
             if (result.confidence !== null) ocrConfidences.push(result.confidence);
           } else {
             ocrIncomplete = true;
+            incompleteOcrPages.push(pageNumber);
             ocrWarnings.push(`OCR returned no searchable text on page ${pageNumber}`);
           }
         } catch (error) {
           ocrIncomplete = true;
+          incompleteOcrPages.push(pageNumber);
           ocrWarnings.push(`OCR failed on page ${pageNumber}: ${error instanceof Error ? error.message : "unknown OCR error"}`);
         }
         }
@@ -816,9 +820,6 @@ export async function processFddDocument(
     );
     if (textCharacters < Math.min(500, pdf.numPages * 20)) {
       throw new Error("The PDF has too little searchable text after OCR; existing location data was preserved");
-    }
-    if (previousLocationCount > 0 && ocrIncomplete) {
-      throw new Error("OCR did not complete within its safety limits; existing location data was preserved");
     }
     const discovery = discoverFranchiseeSources(textPages);
     if (!discovery.sections.length) {
@@ -977,6 +978,14 @@ export async function processFddDocument(
           && (pageData.ocrConfidence === null || pageData.ocrConfidence < OCR_REPLACEMENT_CONFIDENCE);
       }),
     );
+    const incompleteOcrSourcePages = uniqueNumbers(
+      pagesExamined.filter((pageNumber) => incompleteOcrPages.includes(pageNumber)),
+    );
+    if (previousLocationCount > 0 && incompleteOcrSourcePages.length > 0) {
+      throw new Error(
+        `OCR did not complete on source page${incompleteOcrSourcePages.length === 1 ? "" : "s"} ${incompleteOcrSourcePages.join(", ")}; existing location data was preserved`,
+      );
+    }
     if (previousLocationCount > 0 && lowQualityOcrSourcePages.length > 0) {
       throw new Error(
         `OCR quality was too low on source page${lowQualityOcrSourcePages.length === 1 ? "" : "s"} ${lowQualityOcrSourcePages.join(", ")} to replace the previously stored location data; existing location data was preserved`,
@@ -996,16 +1005,27 @@ export async function processFddDocument(
     if (rejectedRows) warnings.push(`${rejectedRows} address-like rows could not be normalized`);
     if (missingAddressRows) warnings.push(`${missingAddressRows} locations do not include a disclosed street address`);
     if (missingContactRows) warnings.push(`${missingContactRows} locations do not include a franchisee or contact`);
-    const complete = missingAddressRows / candidates.length < 0.25
-      && missingContactRows / candidates.length < 0.25;
-    if (!complete) warnings.push("Extraction coverage is below the automatic-approval threshold");
     const evaluatedRows = candidates.length + rejectedRows;
     const rejectedRatio = evaluatedRows ? rejectedRows / evaluatedRows : 1;
+    const complete = missingAddressRows / candidates.length < 0.25
+      && missingContactRows / candidates.length < 0.25
+      && rejectedRatio <= 0.4;
+    if (!complete) warnings.push("Extraction coverage is below the automatic-approval threshold");
     const historicFloor = previousLocationCount >= 20
       ? Math.floor(previousLocationCount * 0.55)
       : 0;
-    if (rejectedRatio > 0.4) {
-      throw new Error(`Extraction rejected ${Math.round(rejectedRatio * 100)}% of candidate rows; existing location data was preserved`);
+    const highRejectionFloor = previousLocationCount >= 20
+      ? historicFloor
+      : previousLocationCount
+        ? Math.ceil(previousLocationCount * 0.8)
+        : 0;
+    if (
+      rejectedRatio > 0.4
+      && (!highRejectionFloor || candidates.length < highRejectionFloor)
+    ) {
+      throw new Error(
+        `Extraction rejected ${Math.round(rejectedRatio * 100)}% of candidate rows (${rejectedRows} rejected, ${candidates.length} accepted); existing location data was preserved`,
+      );
     }
     if (historicFloor && candidates.length < historicFloor) {
       throw new Error(`Extraction produced ${candidates.length} rows versus ${previousLocationCount} previously stored rows; existing location data was preserved`);

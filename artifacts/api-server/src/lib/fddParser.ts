@@ -66,9 +66,10 @@ export type CandidateSourceMetadata = {
 
 function listKindFromText(text: string): FranchiseeListKind | null {
   const value = text.replace(/\s+/g, " ").trim();
-  if (/(?:signed but not open|signed agreements? but (?:have )?not yet opened|not yet opened(?: for business)?|franchises sold but not yet opened|franchise agreements signed but outlet not yet opened)/i.test(value)) return "signed-but-not-open";
+  if (/current and former franchisees/i.test(value)) return null;
+  if (/(?:pre-open studios|signed but not open|signed agreements? but (?:have )?not yet opened|not yet opened(?: for business)?|franchises sold but not yet opened|franchise agreements signed but outlet not yet opened)/i.test(value)) return "signed-but-not-open";
   if (/(?:former franchisees|former franchisee|ceased operations|franchisees who (?:have )?left|terminated franchisees|terminated franchise agreements|exited domestic franchisees)/i.test(value)) return "former";
-  if (/(?:current franchisees|list of (?:open |current )?franchisees|franchisees with outlets open|below is a list of our current franchisees)/i.test(value)) return "current";
+  if (/(?:open studios|current franchisees|list of (?:open |current )?franchisees|franchisees with outlets open|below is a list of our current franchisees)/i.test(value)) return "current";
   return null;
 }
 
@@ -84,10 +85,11 @@ function headingListKind(text: string): FranchiseeListKind | null {
   ) return null;
   const core = compact
     .replace(/^(?:(?:EXHIBIT|EX\.)\s*[A-Z0-9-]+\s*[-–—:]?\s*)/i, "")
+    .replace(/^[A-Z]\s*-\s*\d+\s*[-.)–—:]\s*/i, "")
     .replace(/^[A-Z]\d?\s*[-.)–—:]\s*/i, "")
     .replace(/^[A-Z]\d?\s+(?=LIST\b)/i, "")
     .trim();
-  if (/^(?:LIST OF FRANCHISE(?:S|ES| AGREEMENTS)|LIST OF TERMINATED FRANCHISE AGREEMENTS|LIST OF EXITED DOMESTIC FRANCHISEES|CONTACT INFORMATION FOR|CURRENT FRANCHISEES|FORMER FRANCHISEES|FRANCHISEES WHO (?:HAVE )?LEFT|FRANCHISEES WITH OUTLETS OPEN|SIGNED BUT NOT OPEN|CEASED OPERATIONS|TERMINATED FRANCHISEES|FORMER STUDIO\b)/i.test(core)) {
+  if (/^(?:OPEN STUDIOS|PRE-OPEN STUDIOS|LIST OF FRANCHISE(?:S|ES| AGREEMENTS)|LIST OF (?:CURRENT|FORMER) FRANCHISEES|LIST OF TERMINATED FRANCHISE AGREEMENTS|LIST OF EXITED DOMESTIC FRANCHISEES|BELOW IS A LIST OF OUR CURRENT FRANCHISEES\b|CONTACT INFORMATION FOR|CURRENT FRANCHISEES|FORMER FRANCHISEES|FRANCHISEES WHO (?:HAVE )?LEFT|FRANCHISEES WITH OUTLETS OPEN|SIGNED BUT NOT OPEN|CEASED OPERATIONS|TERMINATED FRANCHISEES|FORMER STUDIO\b)/i.test(core)) {
     return listKindFromText(core);
   }
   return null;
@@ -175,16 +177,33 @@ export function discoverFranchiseeSources(pages: PdfTextPage[]): FranchiseeSourc
     const evidenceCount = [
       ...text.matchAll(new RegExp(`(?:\\b(?:[A-Z]{2}|${STATE_NAME_PATTERN})\\s+\\d{5}\\b|\\b\\d{3}[-.)\\s]+\\d{3}[-.\\s]+\\d{4}\\b|\\b[A-Z]{2}\\d{4}\\b|@[A-Z0-9.-]+\\.[A-Z]{2,})`, "gi")),
     ].length;
-    for (const rawLine of text.split(/\r?\n/)) {
-      const line = rawLine.replace(/\s+/g, " ").trim();
+    const lines = text
+      .split(/\r?\n/)
+      .map((rawLine) => rawLine.replace(/\s+/g, " ").trim());
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+      const line = lines[lineIndex];
       const exhibitMatch = line.match(/^(?:EXHIBIT\b|EX\.)\s*([A-Z0-9-]+)\b/i);
       if (exhibitMatch) {
         exhibit = exhibitMatch[1];
         exhibitStarts.push({ pdfPage, exhibit });
       }
-      if (!isFranchiseeSectionHeading(line) || (pdfPage <= 25 && evidenceCount < 1)) continue;
-      const kind = headingListKind(line)!;
-      headingOccurrences.push({ pdfPage, heading: line, kind, exhibit });
+      const joinedLine = /^(?:EXHIBIT\b|EX\.)\s*[A-Z0-9-]+\s*$/i.test(line)
+        ? ""
+        : `${line} ${lines[lineIndex + 1] ?? ""}`.trim();
+      const heading = isFranchiseeSectionHeading(line)
+        ? line
+        : isFranchiseeSectionHeading(joinedLine)
+          ? joinedLine
+          : null;
+      if (!heading || (pdfPage <= 25 && evidenceCount < 1)) continue;
+      const kind = headingListKind(heading)!;
+      const shorthandExhibit = heading.match(/^([A-Z]-\d+)\s*:/i)?.[1] ?? null;
+      headingOccurrences.push({
+        pdfPage,
+        heading,
+        kind,
+        exhibit: shorthandExhibit ?? exhibit,
+      });
     }
   }
 

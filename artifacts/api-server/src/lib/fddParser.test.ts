@@ -41,6 +41,11 @@ test("maps observed printed footer labels and validates list headings", () => {
   ];
   assert.deepEqual([...mapPrintedPagesToPdfPages(pages)], [[201, 214], [202, 215]]);
   assert.equal(isFranchiseeSectionHeading("Current Franchisees"), true);
+  assert.equal(isFranchiseeSectionHeading("LIST OF FORMER FRANCHISEES"), true);
+  assert.equal(
+    isFranchiseeSectionHeading("Below is a list of our current franchisees, as of December 31, 2025:"),
+    true,
+  );
   assert.equal(isFranchiseeSectionHeading("Current Franchisees ........ 201"), false);
   assert.equal(isFranchiseeSectionHeading("Franchisee financial performance"), false);
 });
@@ -80,6 +85,36 @@ test("classifies a plain List of Franchisees exhibit as a current section", () =
   assert.equal(discovery.sections.length, 1);
   assert.equal(discovery.sections[0].kind, "current");
   assert.equal(discovery.sections[0].pdfPageStart, 100);
+});
+
+test("classifies open, pre-open, and former studio exhibit subsections", () => {
+  const discovery = discoverFranchiseeSources([
+    {
+      pdfPage: 100,
+      text: "EXHIBIT F\nCURRENT AND FORMER FRANCHISEES\nExhibit F-1: Open Studios\nAcme LLC",
+    },
+    {
+      pdfPage: 110,
+      text: "Exhibit F-2: Pre-Open Studios\nBravo LLC",
+    },
+    {
+      pdfPage: 120,
+      text: "F-3: Former\nFranchisees\nCharlie LLC",
+    },
+  ]);
+
+  assert.deepEqual(
+    discovery.sections.map((section) => [
+      section.kind,
+      section.pdfPageStart,
+      section.exhibit,
+    ]),
+    [
+      ["current", 100, "F-1"],
+      ["signed-but-not-open", 110, "F-2"],
+      ["former", 120, "F-3"],
+    ],
+  );
 });
 
 test("merges repeated headers and extends start-only TOC citations to the next section", () => {
