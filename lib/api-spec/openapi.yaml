@@ -1,0 +1,384 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: franchise-finder
+    description: Franchise FDD ingestion and location review
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /stats:
+    get:
+      operationId: getStats
+      tags: [franchise-finder]
+      summary: Get workspace statistics
+      responses:
+        "200":
+          description: Current workspace totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceStats"
+  /documents:
+    get:
+      operationId: listDocuments
+      tags: [franchise-finder]
+      summary: List uploaded FDD documents
+      responses:
+        "200":
+          description: Uploaded documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FddDocument"
+    post:
+      operationId: uploadDocument
+      tags: [franchise-finder]
+      summary: Upload and process an FDD PDF
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentImportInput"
+      responses:
+        "200":
+          description: Processed document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FddDocument"
+        "400":
+          description: Invalid upload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [franchise-finder]
+      summary: Request a direct upload URL for an FDD PDF
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadMetadata"
+      responses:
+        "200":
+          description: Presigned upload destination
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadDestination"
+  /documents/{documentId}/pdf:
+    get:
+      operationId: getDocumentPdf
+      tags: [franchise-finder]
+      summary: Stream the original PDF
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Original PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+  /locations:
+    get:
+      operationId: listLocations
+      tags: [franchise-finder]
+      summary: Search normalized franchise locations
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Current, Former, Planning]
+        - name: franchisor
+          in: query
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { type: string }
+        - name: documentId
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: number, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        "200":
+          description: Matching locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FranchiseLocation"
+  /locations/{locationId}:
+    get:
+      operationId: getLocation
+      tags: [franchise-finder]
+      summary: Get a source-backed location record
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "200":
+          description: Location record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FranchiseLocation"
+        "404":
+          description: Location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateLocation
+      tags: [franchise-finder]
+      summary: Update normalized fields and review status
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationUpdate"
+      responses:
+        "200":
+          description: Updated location record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FranchiseLocation"
+components:
+  parameters:
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema: { type: string }
+    LocationId:
+      name: locationId
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+    WorkspaceStats:
+      type: object
+      properties:
+        documents: { type: number }
+        totalLocations: { type: number }
+        current: { type: number }
+        former: { type: number }
+        planning: { type: number }
+        needsReview: { type: number }
+      required: [documents, totalLocations, current, former, planning, needsReview]
+    ProcessingStage:
+      type: object
+      properties:
+        stage: { type: string }
+        status: { type: string }
+        message: { type: ["string", "null"] }
+        startedAt: { type: string }
+        finishedAt: { type: ["string", "null"] }
+      required: [stage, status, startedAt, finishedAt]
+    FddSourceRange:
+      type: object
+      properties:
+        section: { type: string }
+        status:
+          type: string
+          enum: [Current, Former, Planning]
+        exhibit: { type: ["string", "null"] }
+        printedStart: { type: ["string", "null"] }
+        pdfStart: { type: number }
+        pdfEnd: { type: number }
+      required: [section, status, exhibit, printedStart, pdfStart, pdfEnd]
+    FddExtractionManifest:
+      type: object
+      properties:
+        discoveryMethod:
+          type: string
+          enum: [toc, heading-scan, legacy-fallback]
+        sourceRanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/FddSourceRange"
+        pagesExamined:
+          type: array
+          items: { type: number }
+        ocrPages:
+          type: array
+          items: { type: number }
+        ocrConfidence: { type: ["number", "null"], minimum: 0, maximum: 1 }
+        acceptedRows: { type: number }
+        rejectedRows: { type: number }
+        duplicateRows: { type: number }
+        missingAddressRows: { type: number }
+        missingContactRows: { type: number }
+        addedRows: { type: number }
+        matchedRows: { type: number }
+        updatedRows: { type: number }
+        unchangedRows: { type: number }
+        ambiguousRows: { type: number }
+        collapsedRows: { type: number }
+        warnings:
+          type: array
+          items: { type: string }
+        complete: { type: boolean }
+      required: [discoveryMethod, sourceRanges, pagesExamined, acceptedRows, rejectedRows, duplicateRows, missingAddressRows, missingContactRows, warnings, complete]
+    RecordCounts:
+      type: object
+      additionalProperties:
+        type: number
+    FddDocument:
+      type: object
+      properties:
+        id: { type: string }
+        franchiseName: { type: string }
+        fddYear: { type: ["number", "null"] }
+        filename: { type: string }
+        uploadDate: { type: string }
+        processingStatus: { type: string }
+        pageCount: { type: number }
+        dataAsOf: { type: ["string", "null"] }
+        sourceExhibit: { type: ["string", "null"] }
+        extractionManifest:
+          anyOf:
+            - $ref: "#/components/schemas/FddExtractionManifest"
+            - type: "null"
+        lastProcessedAt: { type: ["string", "null"] }
+        locationCount: { type: number }
+        recordCounts:
+          $ref: "#/components/schemas/RecordCounts"
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProcessingStage"
+      required: [id, franchiseName, filename, uploadDate, processingStatus, pageCount, extractionManifest, lastProcessedAt, locationCount, recordCounts, stages]
+    DocumentImportInput:
+      type: object
+      properties:
+        filename: { type: string, minLength: 1 }
+        objectPath: { type: string, minLength: 1 }
+      required: [filename, objectPath]
+    UploadMetadata:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: number, minimum: 1, maximum: 104857600 }
+        contentType: { type: string }
+      required: [name, size, contentType]
+    UploadDestination:
+      type: object
+      properties:
+        uploadUrl: { type: string }
+        objectPath: { type: string }
+      required: [uploadUrl, objectPath]
+    Contact:
+      type: object
+      properties:
+        rawName: { type: ["string", "null"] }
+        firstName: { type: ["string", "null"] }
+        middleName: { type: ["string", "null"] }
+        lastName: { type: ["string", "null"] }
+        suffix: { type: ["string", "null"] }
+        title: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+      required: [rawName, firstName, middleName, lastName, suffix, title, email, phone]
+    FranchiseLocation:
+      type: object
+      properties:
+        id: { type: string }
+        documentId: { type: string }
+        sourceDocumentFilename: { type: ["string", "null"] }
+        franchiseName: { type: string }
+        franchisor: { type: string }
+        status:
+          type: string
+          enum: [Current, Former, Planning]
+        franchiseeEntity: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        state: { type: ["string", "null"] }
+        zip: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        locationCode: { type: ["string", "null"] }
+        exitReason: { type: ["string", "null"] }
+        sourcePage: { type: ["number", "null"] }
+        printedPage: { type: ["string", "null"] }
+        sourceExhibit: { type: ["string", "null"] }
+        sourceSection: { type: ["string", "null"] }
+        rawSourceText: { type: ["string", "null"] }
+        confidence: { type: number }
+        reviewStatus:
+          type: string
+          enum: [Needs review, Approved, Rejected]
+        reviewReason: { type: ["string", "null"] }
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Contact"
+      required: [id, documentId, franchiseName, franchisor, status, confidence, reviewStatus, contacts]
+    LocationUpdate:
+      type: object
+      properties:
+        franchisor: { type: string }
+        franchiseeEntity: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        state: { type: ["string", "null"] }
+        zip: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        exitReason: { type: ["string", "null"] }
+        reviewStatus:
+          type: string
+          enum: [Needs review, Approved, Rejected]
