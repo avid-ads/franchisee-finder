@@ -129,6 +129,7 @@ export function LocationDetail({ id, onClose }: { id: string; onClose: () => voi
             </div>
             <div className={cn(
               "px-3 py-1 font-mono text-sm font-bold uppercase tracking-widest rounded-md border-2 border-foreground brutal-shadow-sm",
+              location.reviewStatus === "Auto-verified" ? "bg-sky-300" :
               location.reviewStatus === "Approved" ? "bg-emerald-400" :
               location.reviewStatus === "Rejected" ? "bg-rose-400" : "bg-accent"
             )}>

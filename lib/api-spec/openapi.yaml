@@ -161,7 +161,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [Needs review, Approved, Rejected]
+            enum: [Needs review, Auto-verified, Approved, Rejected]
         - name: limit
           in: query
           schema: { type: number, minimum: 1, maximum: 500, default: 100 }
@@ -395,7 +395,7 @@ components:
         confidence: { type: number }
         reviewStatus:
           type: string
-          enum: [Needs review, Approved, Rejected]
+          enum: [Needs review, Auto-verified, Approved, Rejected]
         reviewReason: { type: ["string", "null"] }
         contacts:
           type: array
@@ -416,4 +416,4 @@ components:
         exitReason: { type: ["string", "null"] }
         reviewStatus:
           type: string
-          enum: [Needs review, Approved, Rejected]
+          enum: [Needs review, Auto-verified, Approved, Rejected]

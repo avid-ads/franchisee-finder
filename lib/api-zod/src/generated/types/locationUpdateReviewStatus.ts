@@ -11,6 +11,7 @@ export type LocationUpdateReviewStatus = typeof LocationUpdateReviewStatus[keyof
 
 export const LocationUpdateReviewStatus = {
   Needs_review: 'Needs review',
+  Auto_verified: 'Auto-verified',
   Approved: 'Approved',
   Rejected: 'Rejected',
 } as const;

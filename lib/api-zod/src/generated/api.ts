@@ -268,7 +268,7 @@ export const ListLocationsQueryParams = zod.object({
   "franchisor": zod.coerce.string().optional(),
   "state": zod.coerce.string().optional(),
   "documentId": zod.coerce.string().optional(),
-  "reviewStatus": zod.enum(['Needs review', 'Approved', 'Rejected']).optional(),
+  "reviewStatus": zod.enum(['Needs review', 'Auto-verified', 'Approved', 'Rejected']).optional(),
   "limit": zod.coerce.number().min(1).max(listLocationsQueryLimitMax).default(listLocationsQueryLimitDefault),
   "offset": zod.coerce.number().min(listLocationsQueryOffsetMin).default(listLocationsQueryOffsetDefault)
 })
@@ -296,7 +296,7 @@ export const ListLocationsResponseItem = zod.object({
   "sourceSection": zod.string().nullish(),
   "rawSourceText": zod.string().nullish(),
   "confidence": zod.number(),
-  "reviewStatus": zod.enum(['Needs review', 'Approved', 'Rejected']),
+  "reviewStatus": zod.enum(['Needs review', 'Auto-verified', 'Approved', 'Rejected']),
   "reviewReason": zod.string().nullish(),
   "contacts": zod.array(zod.object({
   "rawName": zod.string().nullable(),
@@ -342,7 +342,7 @@ export const GetLocationResponse = zod.object({
   "sourceSection": zod.string().nullish(),
   "rawSourceText": zod.string().nullish(),
   "confidence": zod.number(),
-  "reviewStatus": zod.enum(['Needs review', 'Approved', 'Rejected']),
+  "reviewStatus": zod.enum(['Needs review', 'Auto-verified', 'Approved', 'Rejected']),
   "reviewReason": zod.string().nullish(),
   "contacts": zod.array(zod.object({
   "rawName": zod.string().nullable(),
@@ -374,7 +374,7 @@ export const UpdateLocationBody = zod.object({
   "phone": zod.string().nullish(),
   "email": zod.string().nullish(),
   "exitReason": zod.string().nullish(),
-  "reviewStatus": zod.enum(['Needs review', 'Approved', 'Rejected']).optional()
+  "reviewStatus": zod.enum(['Needs review', 'Auto-verified', 'Approved', 'Rejected']).optional()
 })
 
 export const UpdateLocationResponse = zod.object({
@@ -400,7 +400,7 @@ export const UpdateLocationResponse = zod.object({
   "sourceSection": zod.string().nullish(),
   "rawSourceText": zod.string().nullish(),
   "confidence": zod.number(),
-  "reviewStatus": zod.enum(['Needs review', 'Approved', 'Rejected']),
+  "reviewStatus": zod.enum(['Needs review', 'Auto-verified', 'Approved', 'Rejected']),
   "reviewReason": zod.string().nullish(),
   "contacts": zod.array(zod.object({
   "rawName": zod.string().nullable(),
@@ -413,5 +413,4 @@ export const UpdateLocationResponse = zod.object({
   "phone": zod.string().nullable()
 }))
 })
-
 

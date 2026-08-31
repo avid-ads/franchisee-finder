@@ -11,6 +11,7 @@ export type FranchiseLocationReviewStatus = typeof FranchiseLocationReviewStatus
 
 export const FranchiseLocationReviewStatus = {
   Needs_review: 'Needs review',
+  Auto_verified: 'Auto-verified',
   Approved: 'Approved',
   Rejected: 'Rejected',
 } as const;

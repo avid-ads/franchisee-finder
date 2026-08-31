@@ -192,6 +192,7 @@ export default function Locations() {
                 </SelectTrigger>
                 <SelectContent className="border-2 border-foreground brutal-shadow rounded-xl font-bold uppercase tracking-wider text-xs">
                   <SelectItem value="all">All Review</SelectItem>
+                  <SelectItem value="Auto-verified">Auto-verified</SelectItem>
                   <SelectItem value="Needs review">Needs Review</SelectItem>
                   <SelectItem value="Approved">Approved</SelectItem>
                   <SelectItem value="Rejected">Rejected</SelectItem>
@@ -284,6 +285,7 @@ export default function Locations() {
                           <TableCell>
                             <span className={cn(
                               "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold",
+                              loc.reviewStatus === "Auto-verified" ? "bg-sky-100 text-sky-800" :
                               loc.reviewStatus === "Approved" ? "bg-emerald-100 text-emerald-800" :
                               loc.reviewStatus === "Rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-900",
                             )}>

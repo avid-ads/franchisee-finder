@@ -721,6 +721,8 @@ test("processes a known-brand PDF through extraction, storage, and stage complet
   assert.ok(fake.candidates.every((candidate) =>
     candidate.franchiseName === "HOTWORX" && candidate.franchisor === "HOTWORX",
   ));
+  assert.equal(fake.candidates[0].reviewStatus, "Auto-verified");
+  assert.equal(fake.candidates[1].reviewStatus, "Needs review");
   assert.match(fake.candidates[0].rawSourceText, /123 Main Street.*Austin.*TX.*78701/);
   assert.deepEqual(fake.contacts.map((contact) => contact.rawName), ["Jane Doe"]);
   assert.equal(fake.contacts[0].email, "jane@example.com");

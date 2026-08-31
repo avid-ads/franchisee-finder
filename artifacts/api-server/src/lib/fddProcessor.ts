@@ -858,14 +858,18 @@ export async function processFddDocument(
     const acceptCandidate = (rawCandidate: FranchisorCandidate) => {
       const candidate = sanitizeCandidate(rawCandidate);
       const quality = scoreCandidate(candidate);
+      const pageData = pdfPages.get(candidate.sourcePage);
       candidate.confidence = quality.confidence;
       if (quality.issues.length) {
         candidate.reviewStatus = "Needs review";
         candidate.reviewReason = quality.issues.join("; ");
+      } else if (!pageData?.ocr && quality.confidence >= 0.85) {
+        candidate.reviewStatus = "Auto-verified";
+        candidate.reviewReason = "Complete row extracted from a verified text-based franchisee section";
       } else {
-        candidate.reviewReason = "Complete row extracted from a verified franchisee section";
+        candidate.reviewStatus = "Needs review";
+        candidate.reviewReason = "Complete row requires review because OCR was used";
       }
-      const pageData = pdfPages.get(candidate.sourcePage);
       if (pageData?.ocr) {
         const confidenceMultiplier = pageData.ocrConfidence ?? 0.5;
         candidate.confidence = Number(

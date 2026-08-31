@@ -167,6 +167,7 @@ export type FranchiseLocationReviewStatus = typeof FranchiseLocationReviewStatus
 
 export const FranchiseLocationReviewStatus = {
   Needs_review: 'Needs review',
+  Auto_verified: 'Auto-verified',
   Approved: 'Approved',
   Rejected: 'Rejected',
 } as const;
@@ -221,6 +222,7 @@ export type LocationUpdateReviewStatus = typeof LocationUpdateReviewStatus[keyof
 
 export const LocationUpdateReviewStatus = {
   Needs_review: 'Needs review',
+  Auto_verified: 'Auto-verified',
   Approved: 'Approved',
   Rejected: 'Rejected',
 } as const;
@@ -278,7 +280,7 @@ export type ListLocationsReviewStatus = typeof ListLocationsReviewStatus[keyof t
 
 export const ListLocationsReviewStatus = {
   Needs_review: 'Needs review',
+  Auto_verified: 'Auto-verified',
   Approved: 'Approved',
   Rejected: 'Rejected',
 } as const;
-
